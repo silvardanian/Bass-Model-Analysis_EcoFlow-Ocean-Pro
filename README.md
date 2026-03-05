@@ -45,7 +45,6 @@ Both products target homeowners, integrate with solar PV systems, and compete in
 
 ```
 ├── bass_model_ecoflow.Rmd        # Main R Markdown source file
-├── Bass_Model_Analysis.Rproj     # RStudio project file
 ├── README.md                     # This file
 │
 ├── data/
