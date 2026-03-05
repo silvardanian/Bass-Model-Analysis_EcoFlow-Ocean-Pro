@@ -1,0 +1,502 @@
+---
+title: "Bass Model Analysis: EcoFlow Ocean Pro Home Battery Storage"
+author: "Silva Vardanyan"
+date: "03.04.2026"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    latex_engine: xelatex
+    fig_caption: true
+    extra_dependencies: ["booktabs", "float", "amsmath"]
+    df_print: kable
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  fig.align = "center",
+  fig.height = 4,
+  fig.width = 7,
+  message = FALSE,
+  warning = FALSE,
+  tidy = TRUE,
+  tidy.opts = list(width.cutoff = 55)
+)
+```
+
+
+```{r libraries, message=FALSE, warning=FALSE, include = FALSE}
+libs <- c('ggplot2', 'ggpubr', 'knitr', 'diffusion', 'dplyr')
+load_libraries <- function(libs) {
+  new_libs <- libs[!(libs %in% installed.packages()[, "Package"])]
+  if (length(new_libs) > 0) install.packages(new_libs)
+  lapply(libs, library, character.only = TRUE)
+}
+load_libraries(libs)
+```
+
+\newpage
+
+# Introduction
+
+## The Innovation: EcoFlow Ocean Pro Home Battery Storage
+
+The **EcoFlow Ocean Pro** is a home battery storage system recognized in TIME's Best Inventions of 2025 list. Unlike traditional home batteries, the Ocean Pro uses seawater-inspired electrolyte chemistry (sodium-ion), making it non-flammable, environmentally safer, and suitable for coastal and tropical environments. It offers a modular design, seamless solar integration, and is positioned as a cost-effective alternative to lithium-ion home batteries.
+
+**Product Link:** [TIME Best Inventions 2025 — EcoFlow Ocean Pro](https://time.com/collections/best-inventions-2025/7318344/ecoflow-ocean-pro-home-battery-storage/)
+
+## The Look-Alike Innovation: Tesla Powerwall
+
+As the look-alike innovation for the Bass Model estimation, we select the **Tesla Powerwall**, a lithium-ion home battery storage system first launched in 2015. The Powerwall and the EcoFlow Ocean Pro share the same core function: storing energy for residential use, often paired with solar panels. Both products:
+
+- Target homeowners seeking energy independence and resilience.
+- Integrate with solar PV systems.
+- Are marketed on energy capacity (kWh) and round-trip efficiency.
+- Operate in the same residential energy storage market.
+
+The key difference is the battery chemistry (lithium-ion vs. sodium-ion) and price point - the Ocean Pro aims at broader accessibility. However, the adoption dynamics (awareness → trial → word-of-mouth) should be structurally similar, making the Powerwall an appropriate look-alike for Bass Model parameter estimation.
+
+## Scope
+
+The analysis is conducted at the **global level**, as both the Tesla Powerwall and EcoFlow are sold internationally. Global scope is supported by Tesla's published milestone of 1,000,000 worldwide Powerwall installations by 2025 (Tesla, 2025), and EcoFlow's international distribution across North America, Europe, and Asia-Pacific.
+
+---
+
+# Data: Tesla Powerwall Historical Installations
+
+## Data Description
+
+The dataset contains annual Tesla Powerwall installations (units) from 2015 to 2025, compiled from Tesla quarterly reports and industry analyses.
+
+```{r data}
+powerwall <- read.csv("data/Tesla Powerwall.csv")
+
+
+powerwall <- powerwall %>%
+  select(Year, Installations, Cumulative)
+
+caption <- "Tesla Powerwall Annual and Cumulative Installations (2015–2025)"
+
+kable(powerwall,
+      caption = caption,
+      col.names = c("Year", "Annual Installations", "Cumulative Installations"),
+      format.args = list(big.mark = ","),
+      booktabs = TRUE)
+```
+
+## Historical Sales Visualization
+
+```{r historical-plots, fig.cap="Tesla Powerwall: Annual and Cumulative Installations (2015–2025)"}
+p1 <- ggplot(powerwall, aes(x = Year, y = Installations)) +
+  geom_bar(stat = "identity", fill = "#E31937", alpha = 0.85) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_x_continuous(breaks = 2015:2025) +
+  labs(title = "Annual Installations",
+       x = "Year", y = "Units") +
+  theme_minimal(base_size = 10) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+p2 <- ggplot(powerwall, aes(x = Year, y = Cumulative)) +
+  geom_bar(stat = "identity", fill = "#1A1A2E", alpha = 0.85) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_x_continuous(breaks = 2015:2025) +
+  labs(title = "Cumulative Installations",
+       x = "Year", y = "Units") +
+  theme_minimal(base_size = 10) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+print(ggarrange(p1, p2, ncol = 2))
+```
+
+---
+
+# Bass Model Theory
+
+## The Bass Model Equation
+
+The Bass diffusion model describes how new products are adopted over time. The core equation is:
+
+$$\frac{f(t)}{1 - F(t)} = p + \frac{q}{M} \cdot A(t)$$
+
+which is equivalent to:
+
+$$\frac{f(t)}{1 - F(t)} = p + q \cdot F(t)$$
+
+where:
+
+- $f(t)$: fraction of the total market that adopts at time $t$
+- $F(t)$: cumulative fraction of the total market that has adopted up to time $t$
+- $p$: **coefficient of innovation** (external influence / advertising effect)
+- $q$: **coefficient of imitation** (internal influence / word-of-mouth effect)
+- $M$: **market potential** (total number of eventual adopters)
+- $A(t) = M \cdot F(t)$: cumulative number of adopters at time $t$
+
+## Closed-Form Solutions
+
+Solving the differential equation:
+
+$$F(t) = \frac{1 - e^{-(p+q)t}}{1 + \frac{q}{p} e^{-(p+q)t}}$$
+
+$$f(t) = \frac{(p+q)^2}{p} \cdot \frac{e^{-(p+q)t}}{\left(1 + \frac{q}{p} e^{-(p+q)t}\right)^2}$$
+
+## Number of Adopters
+
+The number of adopters at time $t$ is:
+
+$$a(t) = M \cdot f(t)$$
+
+## Peak Adoption Time
+
+The time at which adoption reaches its peak is:
+
+$$t^* = \frac{\ln(q/p)}{p + q}$$
+
+## Linearized Form for OLS Estimation
+
+With substitutions $\beta_0 = pM$, $\beta_1 = (q-p)$, $\beta_2 = -q/M$:
+
+$$a(t) = \beta_0 + \beta_1 A(t) + \beta_2 A(t)^2$$
+
+This is the linearized Bass model that allows OLS estimation.
+
+## R Functions
+
+```{r bass-functions}
+# f(t): probability density of adoption at time t
+bass.f <- function(t, p, q) {
+  ((p + q)^2 / p) * exp(-(p + q) * t) /
+    (1 + (q / p) * exp(-(p + q) * t))^2
+}
+
+# F(t): cumulative adoption fraction by time t
+bass.F <- function(t, p, q) {
+  (1 - exp(-(p + q) * t)) /
+    (1 + (q / p) * exp(-(p + q) * t))
+}
+```
+
+---
+
+# Parameter Estimation for Tesla Powerwall
+
+## Method 1: Non-Linear Least Squares (NLS)
+
+Using `nls()` to fit the Bass model directly to annual installation data:
+
+$$a(t) = M \cdot \frac{(p+q)^2}{p} \cdot \frac{e^{-(p+q)t}}{\left(1 + \frac{q}{p}e^{-(p+q)t}\right)^2}$$
+
+```{r nls-estimation}
+sales <- powerwall$Installations
+t     <- 1:length(sales)
+
+bass_nls <- nls(
+  sales ~ m * (((p + q)^2 / p) * exp(-(p + q) * t)) /
+            (1 + (q / p) * exp(-(p + q) * t))^2,
+  start   = list(m = sum(sales), p = 0.02, q = 0.4),
+  control = nls.control(maxiter = 1000, minFactor = 1e-10),
+  algorithm = "port",
+  lower   = c(m = 1, p = 1e-6, q = 1e-6),
+  upper   = c(m = 1e8, p = 1,   q = 1)
+)
+
+summary(bass_nls)
+```
+
+```{r nls-params}
+p_nls <- coef(bass_nls)["p"]
+q_nls <- coef(bass_nls)["q"]
+m_nls <- coef(bass_nls)["m"]
+
+cat(sprintf("NLS Estimates:
+            p (innovation) = %.4f
+            q (imitation)  = %.4f
+            M (market pot) = %.0f",
+            p_nls, q_nls, m_nls))
+```
+
+## Method 2: Diffusion Package
+
+Using the `diffusion()` function:
+
+```{r diffusion-estimation}
+diff_m <- diffusion(sales)
+
+m_diff <- round(diff_m$w, 4)[1]
+p_diff <- round(diff_m$w, 4)[2]
+q_diff <- round(diff_m$w, 4)[3]
+
+diff_m
+```
+
+## Comparison of Methods
+
+```{r params-table}
+caption <- "Bass Model Parameter Estimates  Tesla Powerwall"
+
+params_table <- data.frame(
+  Method   = c("NLS", "diffusion package"),
+  p        = round(c(p_nls, p_diff), 5),
+  q        = round(c(q_nls, q_diff), 4),
+  M        = round(c(m_nls, m_diff), 0)
+)
+
+kable(params_table,
+      caption = caption,
+      col.names = c("Method", "p (innovation)", "q (imitation)", "M (market potential)"),
+      booktabs = TRUE)
+```
+
+We use the **NLS estimates** as the primary parameters going forward.
+
+---
+
+# Model Fit: Tesla Powerwall
+
+## Predicted vs. Actual Installations
+
+```{r model-fit-plot, fig.cap="Bass Model Fit: Tesla Powerwall Predicted vs. Actual Annual Installations"}
+title <- "Tesla Powerwall: Actual vs. Bass Model Predicted Installations"
+
+powerwall$pred_sales <- bass.f(t, p = p_nls, q = q_nls) * m_nls
+
+ggplot(powerwall, aes(x = Year)) +
+  geom_bar(aes(y = Installations), stat = "identity",
+           fill = "#E31937", alpha = 0.6, width = 0.6) +
+  geom_line(aes(y = pred_sales), color = "#1A1A2E",
+            linewidth = 1.2, linetype = "dashed") +
+  geom_point(aes(y = pred_sales), color = "#1A1A2E", size = 3) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_x_continuous(breaks = 2015:2025) +
+  labs(title = title,
+       subtitle = "Bars = Actual | Dashed line = Predicted",
+       x = "Year", y = "Annual Installations") +
+  theme_minimal(base_size = 10) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## f(t) and F(t) Curves
+
+```{r ft-Ft-plot, fig.cap="Bass Model f(t) and F(t) for Tesla Powerwall"}
+ft_plot <- ggplot(data.frame(t = c(1, 20)), aes(t)) +
+  stat_function(fun = bass.f, args = list(p = p_nls, q = q_nls),
+                color = "#E31937", linewidth = 1.2) +
+  labs(title = "f(t): Adoption Rate",
+       x = "Time (years since 2015)", y = "f(t)") +
+  theme_minimal(base_size = 10)
+
+Ft_plot <- ggplot(data.frame(t = c(1, 20)), aes(t)) +
+  stat_function(fun = bass.F, args = list(p = p_nls, q = q_nls),
+                color = "#1A1A2E", linewidth = 1.2) +
+  labs(title = "F(t): Cumulative Adoption Fraction",
+       x = "Time (years since 2015)", y = "F(t)") +
+  theme_minimal(base_size = 10)
+
+ggarrange(ft_plot, Ft_plot, ncol = 2)
+```
+
+## Peak Adoption Time
+
+$$t^* = \frac{\ln(q/p)}{p + q}$$
+
+```{r peak-time}
+t_star <- log(q_nls / p_nls) / (p_nls + q_nls)
+
+cat(sprintf(
+  "Peak adoption predicted at t* = %.2f years after 2015 - Year %.2f
+  Actual peak year: %d (Year %d)",
+  t_star,
+  2015 + t_star,
+  powerwall$Year[which.max(powerwall$Installations)],
+  which.max(powerwall$Installations)
+))
+```
+
+---
+
+# Predicting Diffusion of EcoFlow Ocean Pro
+
+## Market Potential Estimation for EcoFlow (Fermi Estimation)
+
+Since the EcoFlow Ocean Pro launched in 2025, we estimate its market potential $M$ using **Fermi's logic**:
+
+- **Global households** (2025): ~2.2 billion (World Bank estimate)
+- **Households with solar panels** (target segment): ~5% = ~110 million
+- **Willingness to add home battery** (addressable): ~20% = ~22 million
+- **EcoFlow Ocean Pro market share** (vs Powerwall, LG, Sonnen, etc.): ~10%
+- **Estimated $M$ for EcoFlow Ocean Pro**: ~**2,200,000 units**
+
+We use $p$ and $q$ from the Tesla Powerwall estimation (the look-alike), and apply the estimated $M = 2,200,000$ for the EcoFlow Ocean Pro.
+
+```{r ecoflow-params}
+p_eco <- p_nls  # from look-alike (Tesla Powerwall)
+q_eco <- q_nls  # from look-alike (Tesla Powerwall)
+M_eco <- 2200000  # Fermi estimation
+
+cat(sprintf(
+  "EcoFlow Ocean Pro Parameters:
+  p = %.4f (from Powerwall look-alike)
+  q = %.4f (from Powerwall look-alike)
+  M = %s (Fermi estimation)",
+  p_eco, q_eco, format(M_eco, big.mark = ",")
+))
+```
+
+## Predicted Annual Adopters
+
+```{r ecoflow-prediction}
+caption <- "EcoFlow Ocean Pro - Predicted Annual and Cumulative Adopters (2025–2039)"
+t_pred    <- 1:15
+years_eco <- 2025:(2025 + length(t_pred) - 1)
+
+adopters_annual     <- bass.f(t_pred, p = p_eco, q = q_eco) * M_eco
+adopters_cumulative <- bass.F(t_pred, p = p_eco, q = q_eco) * M_eco
+
+ecoflow_forecast <- data.frame(
+  Year              = years_eco,
+  t                 = t_pred,
+  Annual_Adopters   = round(adopters_annual),
+  Cumulative_Adopters = round(adopters_cumulative)
+)
+
+kable(
+  ecoflow_forecast,
+  caption = caption,
+  col.names = c("Year", "t", "Annual Adopters", "Cumulative Adopters"),
+  format.args = list(big.mark = ","),
+  booktabs = TRUE)
+```
+
+## Diffusion Curve Visualization
+
+```{r ecoflow-adoption-plot, fig.cap="EcoFlow Ocean Pro: Predicted Annual Adopters (Bass Model)"}
+title <- "EcoFlow Ocean Pro — Predicted Annual Adoption (Bass Model)"
+
+ggplot(ecoflow_forecast, aes(x = Year, y = Annual_Adopters)) +
+  geom_bar(stat = "identity", fill = "#0077B6", alpha = 0.85) +
+  geom_line(aes(y = Annual_Adopters), color = "#03045E",
+            linewidth = 1, linetype = "dashed") +
+  scale_y_continuous(labels = scales::comma) +
+  scale_x_continuous(breaks = years_eco) +
+  labs(
+    title    = title,
+    subtitle = paste0("p = ", round(p_eco, 4),
+                      ", q = ", round(q_eco, 4),
+                      ", M = ", format(M_eco, big.mark = ",")),
+    x = "Year",
+    y = "Annual Adopters"
+  ) +
+  theme_minimal(base_size = 10) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r ecoflow-cumulative-plot, fig.cap="EcoFlow Ocean Pro: Predicted Cumulative Adopters (Bass Model)"}
+title <- "EcoFlow Ocean Pro - Cumulative Adoption (Bass Model)"
+
+ggplot(ecoflow_forecast, aes(x = Year, y = Cumulative_Adopters)) +
+  geom_line(color = "#0077B6", linewidth = 1.5) +
+  geom_point(color = "#03045E", size = 3) +
+  scale_y_continuous(labels = scales::comma,
+                     limits = c(0, M_eco * 1.05)) +
+  geom_hline(yintercept = M_eco, linetype = "dashed",
+             color = "gray50", linewidth = 0.5) +
+  annotate("text", x = 2030, y = M_eco * 1.02,
+           label = paste("Market Potential M =", format(M_eco, big.mark = ",")),
+           size = 4, color = "black") +
+  scale_x_continuous(breaks = years_eco) +
+  labs(
+    title = title,
+    x = "Year", y = "Cumulative Adopters"
+  ) +
+  theme_minimal(base_size = 10) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## Peak Adoption Year for EcoFlow Ocean Pro
+
+```{r ecoflow-peak}
+t_star_eco  <- log(q_eco / p_eco) / (p_eco + q_eco)
+peak_year_eco <- 2025 + t_star_eco
+
+cat(sprintf(
+  "EcoFlow Ocean Pro peak adoption predicted at:
+  t* = %.2f years after launch (2025) 
+  Approximately Year %.1f",
+  t_star_eco, peak_year_eco
+))
+```
+
+---
+
+# Summary and Conclusions
+
+## Summary of Results
+
+```{r summary-table}
+summary_df <- data.frame(
+  Item = c(
+    "Look-alike product",
+    "p - coefficient of innovation",
+    "q - coefficient of imitation",
+    "M (look-alike, Powerwall)",
+    "M (EcoFlow Ocean Pro, Fermi)",
+    "Predicted peak year (EcoFlow)"
+  ),
+  Value = c(
+    "Tesla Powerwall (2015–2025)",
+    round(p_nls, 5),
+    round(q_nls, 5),
+    format(round(m_nls), big.mark = ","),
+    format(M_eco, big.mark = ","),
+    round(peak_year_eco, 1)
+  )
+)
+
+kable(summary_df,
+      caption = "Summary of Bass Model Analysis",
+      col.names = c("Parameter / Item", "Value"),
+      booktabs = TRUE)
+```
+
+## Key Insights
+
+**Parameter Interpretation:**
+
+The estimated **p = 0.00093** is very small, indicating that very few adopters purchase
+the product independently of social influence. This means that EcoFlow Ocean Pro 
+adoption will be driven primarily by **imitation and word-of-mouth** rather than 
+external advertising or independent decision-making.
+
+The **q = 0.5929** is considerably larger than p, confirming that the dominant 
+adoption mechanism is **social contagion** — potential buyers are strongly influenced 
+by the experience of existing adopters.
+
+The ratio q/p confirms this: existing adopters are approximately **639 times** more 
+influential than independent innovation in driving new adoptions.
+
+**Diffusion Outlook:**
+
+The Bass Model predicts peak annual adoption at **t* = 10.88 years after launch**, 
+corresponding to approximately **2035–2036**, at which point annual adopters are 
+predicted to reach around **326,000–327,000 units**. After this peak, annual adoptions 
+decline as the market approaches saturation at **M = 2,200,000 cumulative units**.
+
+By 2039 (t = 15), the model predicts **2,024,408 cumulative adopters**, representing 
+approximately **92% of the estimated market potential**, indicating near-full market 
+saturation within 15 years of launch.
+
+---
+\newpage
+
+# References
+
+- Bass, F. M. (1969). A new product growth for model consumer durables. *Management Science*, 15(5), 215–227.
+- Rogers, E. M. (1962). *Diffusion of Innovations*. Free Press.
+- Tesla, Inc. (2025). *1 Million Powerwalls Installed*. https://www.tesla.com/en_qa/learn/1-million-powerwalls-installed
+- Tesla, Inc. (2019). *Q4 2018 Update Letter*. https://cdn.arstechnica.net/wp-content/uploads/2019/01/Tesla-2018-Q4-Update-Letter1.pdf
+- Drive Tesla Canada (2024). *Tesla reaches 750,000 Powerwall installs worldwide*. https://driveteslacanada.ca/news/tesla-reaches-750000-powerwall-installs-worldwide/
+- Benzinga (2023). *Tesla Energy Passes 500,000 Powerwall Installations*. https://www.benzinga.com/news/23/06/32901830
+- TIME Magazine (2025). *Best Inventions 2025 — EcoFlow Ocean Pro*. https://time.com/collections/best-inventions-2025/7318344/ecoflow-ocean-pro-home-battery-storage/
+- BDG (2021). *Residential Energy Storage Report*. https://www.dret-ca.com/wp-content/uploads/2021/03/Residential-Energy-Storage-by-BDG-Final-Report.pdf
+- World Bank (2024). *World Development Indicators*. https://data.worldbank.org
